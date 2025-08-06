@@ -38,7 +38,7 @@ jobs:
             # node_modules 캐시 클리어 (Metro 호환성 문제 해결)
             rm -rf node_modules/.cache
             # Expo CLI와 호환되는 Metro 완전한 패키지 설치 (0.76.x 버전)
-            yarn add metro@^0.79.0 metro-config@^0.79.0 metro-cache@^0.79.0 metro-core@^0.79.0 metro-runtime@^0.79.0 metro-resolver@^0.79.0 metro-transform-worker@^0.79.0 metro-babel-transformer@^0.79.0 metro-file-map@^0.79.0 metro-source-map@^0.79.0 metro-react-native-babel-preset@^0.79.0
+            yarn add metro@^0.79.0 metro-config@^0.79.0 metro-cache@^0.79.0 metro-core@^0.79.0 metro-runtime@^0.79.0 metro-resolver@^0.79.0 metro-transform-worker@^0.79.0 metro-babel-transformer@^0.79.0 metro-file-map@^0.79.0 metro-source-map@^0.79.0 @react-native/babel-preset@^0.79.0
             # Expo CLI를 프로젝트 의존성으로 설치
             yarn add -D @expo/cli
           
@@ -88,7 +88,7 @@ jobs:
             # node_modules 캐시 클리어 (Metro 호환성 문제 해결)
             rm -rf node_modules/.cache
             # Expo CLI와 호환되는 Metro 완전한 패키지 설치 (0.76.x 버전)
-            yarn add metro@^0.79.0 metro-config@^0.79.0 metro-cache@^0.79.0 metro-core@^0.79.0 metro-runtime@^0.79.0 metro-resolver@^0.79.0 metro-transform-worker@^0.79.0 metro-babel-transformer@^0.79.0 metro-file-map@^0.79.0 metro-source-map@^0.79.0 metro-react-native-babel-preset@^0.79.0
+            yarn add metro@^0.79.0 metro-config@^0.79.0 metro-cache@^0.79.0 metro-core@^0.79.0 metro-runtime@^0.79.0 metro-resolver@^0.79.0 metro-transform-worker@^0.79.0 metro-babel-transformer@^0.79.0 metro-file-map@^0.79.0 metro-source-map@^0.79.0 @react-native/babel-preset@^0.79.0
             # Expo CLI를 프로젝트 의존성으로 설치
             yarn add -D @expo/cli
           
