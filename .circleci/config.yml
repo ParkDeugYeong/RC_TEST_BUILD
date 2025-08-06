@@ -209,14 +209,15 @@ jobs:
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
             export EXPO_TOKEN=$EXPO_TOKEN
-            # 빌드 시작하고 Build ID 저장 (업로드 과정에서 시간이 많이 소요될 수 있음)
+            # 빌드 시작하고 Build ID 저장 (업로드만 하고 대기하지 않음)
             echo "Starting EAS Build upload and initialization..."
-            yarn eas build --platform android --profile apk --non-interactive --json > build_result.json
+            yarn eas build --platform android --profile apk --non-interactive --no-wait --json > build_result.json
             BUILD_ID=$(cat build_result.json | jq -r '.id')
             echo "Build started with ID: $BUILD_ID"
             echo $BUILD_ID > build_id.txt
             echo "Build upload completed and queued for processing."
-          no_output_timeout: 15m
+            echo "Build will be monitored in the next step..."
+          no_output_timeout: 10m
 
       # 빌드 완료 대기 (폴링 방식)
       - run:
@@ -226,21 +227,35 @@ jobs:
             BUILD_ID=$(cat build_id.txt)
             echo "Waiting for build $BUILD_ID to complete..."
             
-            # 최대 90분 대기 (5분마다 체크) - EAS 무료 계정 큐 대기시간 고려
-            for i in {1..18}; do
+            # 최대 90분 대기 (2분마다 체크) - EAS 무료 계정 큐 대기시간 고려
+            for i in {1..45}; do
+              echo "===== Build Status Check $i/45 ====="
               STATUS=$(yarn eas build:list --build-id $BUILD_ID --json | jq -r '.[0].status')
-              echo "Build status: $STATUS (check $i/18)"
+              CURRENT_TIME=$(date)
+              echo "Current time: $CURRENT_TIME"
+              echo "Build ID: $BUILD_ID"
+              echo "Build status: $STATUS"
               
               if [ "$STATUS" = "finished" ]; then
-                echo "Build completed successfully!"
+                echo "🎉 Build completed successfully!"
                 break
               elif [ "$STATUS" = "errored" ] || [ "$STATUS" = "canceled" ]; then
-                echo "Build failed with status: $STATUS"
+                echo "❌ Build failed with status: $STATUS"
+                echo "Check logs: https://expo.dev/accounts/parkseohoo/projects/RC_BUILD_TEST/builds/$BUILD_ID"
                 exit 1
+              elif [ "$STATUS" = "in-queue" ]; then
+                echo "⏳ Build is waiting in queue..."
+              elif [ "$STATUS" = "in-progress" ]; then
+                echo "🔄 Build is in progress..."
+              else
+                echo "📋 Build status: $STATUS"
               fi
               
-              # 5분 대기 (큐 대기시간을 고려한 체크 간격)
-              sleep 300
+              echo "Next check in 2 minutes..."
+              echo "========================================="
+              
+              # 2분 대기 (더 자주 체크하여 출력 유지)
+              sleep 120
             done
             
             # 최종 상태 확인
