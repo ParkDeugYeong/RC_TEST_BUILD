@@ -18,17 +18,22 @@ jobs:
     steps:
       - checkout
       
-      # Yarn Berry 설정
+      # Yarn 4.9.1 설정 (Corepack 사용)
       - run:
-          name: Enable Yarn Berry
+          name: Setup Yarn 4.9.1
           command: |
-            yarn set version berry
+            mkdir -p ~/.corepack
+            corepack enable --install-directory ~/.corepack
+            echo 'export PATH="$HOME/.corepack:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            corepack prepare yarn@4.9.1 --activate
+            yarn --version
             yarn config set nodeLinker node-modules
       
       # 의존성 설치
-      - node/install-packages:
-          pkg-manager: yarn
-          cache-version: "v1"
+      - run:
+          name: Install Dependencies
+          command: yarn install --immutable
           
       # TypeScript 타입 체크
       - run:
@@ -56,34 +61,50 @@ jobs:
     steps:
       - checkout
       
-      # Yarn Berry 설정
+      # Yarn 4.9.1 설정 (Corepack 사용)
       - run:
-          name: Enable Yarn Berry
+          name: Setup Yarn 4.9.1
           command: |
-            yarn set version berry
+            mkdir -p ~/.corepack
+            corepack enable --install-directory ~/.corepack
+            echo 'export PATH="$HOME/.corepack:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            corepack prepare yarn@4.9.1 --activate
+            yarn --version
             yarn config set nodeLinker node-modules
             
       # 의존성 설치
-      - node/install-packages:
-          pkg-manager: yarn
-          cache-version: "v1"
+      - run:
+          name: Install Dependencies
+          command: yarn install --immutable
           
-      # Expo CLI 설치
+      # Expo CLI 설치 및 인증
       - run:
           name: Install Expo CLI
           command: yarn global add @expo/cli
           
-      # Expo 프로젝트 빌드 (웹 버전)
       - run:
-          name: Build Expo Web
+          name: Expo Authentication
+          command: |
+            echo $EXPO_TOKEN | expo login --stdin
+          
+      # Expo 프로젝트 빌드 (모바일 전용: Android + iOS)
+      - run:
+          name: Build Expo Android
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
-            yarn expo export --platform web
+            yarn expo export --platform android
+            
+      - run:
+          name: Build Expo iOS
+          command: |
+            export NODE_OPTIONS="--max-old-space-size=4096"
+            yarn expo export --platform ios
             
       # 빌드 결과물 저장
       - store_artifacts:
           path: dist
-          destination: expo-web-build
+          destination: expo-mobile-builds
           
       # 캐시 저장
       - save_cache:
