@@ -37,6 +37,8 @@ jobs:
             yarn install --immutable
             # Expo CLI와 호환되는 Metro 버전 설치
             yarn add metro@^0.80.0 metro-config@^0.80.0 metro-cache@^0.80.0
+            # Expo CLI를 프로젝트 의존성으로 설치
+            yarn add -D @expo/cli
           
       # TypeScript 타입 체크
       - run:
@@ -83,6 +85,8 @@ jobs:
             yarn install --immutable
             # Expo CLI와 호환되는 Metro 버전 설치
             yarn add metro@^0.80.0 metro-config@^0.80.0 metro-cache@^0.80.0
+            # Expo CLI를 프로젝트 의존성으로 설치
+            yarn add -D @expo/cli
           
       # Expo CLI 설치 및 인증
       - run:
@@ -106,8 +110,8 @@ jobs:
             export EXPO_TOKEN=$EXPO_TOKEN
             echo "EXPO_TOKEN is set (length: ${#EXPO_TOKEN})"
             
-            # 인증 상태 확인
-            yarn dlx @expo/cli whoami || echo "Authentication failed, but continuing..."
+            # 인증 상태 확인 (프로젝트에 설치된 CLI 사용)
+            yarn expo whoami || echo "Authentication failed, but continuing..."
           
       # Expo 프로젝트 빌드 (모바일 전용: Android + iOS)
       - run:
@@ -115,14 +119,14 @@ jobs:
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
             export EXPO_TOKEN=$EXPO_TOKEN
-            yarn dlx @expo/cli export --platform android
+            yarn expo export --platform android
             
       - run:
           name: Build Expo iOS
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
             export EXPO_TOKEN=$EXPO_TOKEN
-            yarn dlx @expo/cli export --platform ios
+            yarn expo export --platform ios
             
       # 빌드 결과물 저장
       - store_artifacts:
