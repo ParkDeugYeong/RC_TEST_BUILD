@@ -35,8 +35,8 @@ jobs:
           name: Install Dependencies
           command: |
             yarn install --immutable
-            # Expo CLI와 호환되는 Metro 버전 설치
-            yarn add metro@^0.80.0 metro-config@^0.80.0 metro-cache@^0.80.0
+            # Expo CLI와 호환되는 Metro 전체 패키지 설치
+            yarn add metro@^0.80.0 metro-config@^0.80.0 metro-cache@^0.80.0 metro-core@^0.80.0 metro-runtime@^0.80.0 metro-resolver@^0.80.0 metro-transform-worker@^0.80.0 metro-babel-transformer@^0.80.0
             # Expo CLI를 프로젝트 의존성으로 설치
             yarn add -D @expo/cli
           
@@ -83,8 +83,8 @@ jobs:
           name: Install Dependencies
           command: |
             yarn install --immutable
-            # Expo CLI와 호환되는 Metro 버전 설치
-            yarn add metro@^0.80.0 metro-config@^0.80.0 metro-cache@^0.80.0
+            # Expo CLI와 호환되는 Metro 전체 패키지 설치
+            yarn add metro@^0.80.0 metro-config@^0.80.0 metro-cache@^0.80.0 metro-core@^0.80.0 metro-runtime@^0.80.0 metro-resolver@^0.80.0 metro-transform-worker@^0.80.0 metro-babel-transformer@^0.80.0
             # Expo CLI를 프로젝트 의존성으로 설치
             yarn add -D @expo/cli
           
