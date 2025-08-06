@@ -33,7 +33,10 @@ jobs:
       # 의존성 설치
       - run:
           name: Install Dependencies
-          command: yarn install --immutable
+          command: |
+            yarn install --immutable
+            # Expo CLI와 호환되는 Metro 버전 설치
+            yarn add metro@^0.80.0 metro-config@^0.80.0 metro-cache@^0.80.0
           
       # TypeScript 타입 체크
       - run:
@@ -76,7 +79,10 @@ jobs:
       # 의존성 설치
       - run:
           name: Install Dependencies
-          command: yarn install --immutable
+          command: |
+            yarn install --immutable
+            # Expo CLI와 호환되는 Metro 버전 설치
+            yarn add metro@^0.80.0 metro-config@^0.80.0 metro-cache@^0.80.0
           
       # Expo CLI 설치 및 인증
       - run:
