@@ -1,0 +1,93 @@
+version: 2.1
+
+orbs:
+  node: circleci/node@5.1.0
+  expo: expo/expo@1.0.0
+
+workflows:
+  build-and-test:
+    jobs:
+      - lint-and-test
+      - build-expo:
+          requires:
+            - lint-and-test
+
+jobs:
+  lint-and-test:
+    docker:
+      - image: cimg/node:18.20
+    steps:
+      - checkout
+      
+      # Yarn Berry 설정
+      - run:
+          name: Enable Yarn Berry
+          command: |
+            yarn set version berry
+            yarn config set nodeLinker node-modules
+      
+      # 의존성 설치
+      - node/install-packages:
+          pkg-manager: yarn
+          cache-key: "yarn-packages-v1-{{ .Branch }}-{{ checksum \"yarn.lock\" }}"
+          
+      # TypeScript 타입 체크
+      - run:
+          name: TypeScript Type Check
+          command: yarn tsc --noEmit
+          
+      # ESLint 검사
+      - run:
+          name: Run ESLint
+          command: yarn lint
+          
+      # 테스트 실행 (Jest가 설정되어 있다면)
+      - run:
+          name: Run Tests
+          command: |
+            if [ -f "jest.config.js" ] || grep -q '"test"' package.json; then
+              yarn test --watchAll=false
+            else
+              echo "No tests found, skipping..."
+            fi
+
+  build-expo:
+    docker:
+      - image: cimg/node:18.20
+    steps:
+      - checkout
+      
+      # Yarn Berry 설정
+      - run:
+          name: Enable Yarn Berry
+          command: |
+            yarn set version berry
+            yarn config set nodeLinker node-modules
+            
+      # 의존성 설치
+      - node/install-packages:
+          pkg-manager: yarn
+          cache-key: "yarn-packages-v1-{{ .Branch }}-{{ checksum \"yarn.lock\" }}"
+          
+      # Expo CLI 설치
+      - run:
+          name: Install Expo CLI
+          command: yarn global add @expo/cli
+          
+      # Expo 프로젝트 빌드 (웹 버전)
+      - run:
+          name: Build Expo Web
+          command: |
+            export NODE_OPTIONS="--max-old-space-size=4096"
+            yarn expo export --platform web
+            
+      # 빌드 결과물 저장
+      - store_artifacts:
+          path: dist
+          destination: expo-web-build
+          
+      # 캐시 저장
+      - save_cache:
+          key: expo-build-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - dist
