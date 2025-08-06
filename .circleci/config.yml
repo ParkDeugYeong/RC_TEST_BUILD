@@ -209,12 +209,14 @@ jobs:
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
             export EXPO_TOKEN=$EXPO_TOKEN
-            # 빌드 시작하고 Build ID 저장
+            # 빌드 시작하고 Build ID 저장 (업로드 과정에서 시간이 많이 소요될 수 있음)
+            echo "Starting EAS Build upload and initialization..."
             yarn eas build --platform android --profile apk --non-interactive --json > build_result.json
             BUILD_ID=$(cat build_result.json | jq -r '.id')
             echo "Build started with ID: $BUILD_ID"
             echo $BUILD_ID > build_id.txt
-          no_output_timeout: 5m
+            echo "Build upload completed and queued for processing."
+          no_output_timeout: 15m
 
       # 빌드 완료 대기 (폴링 방식)
       - run:
@@ -224,10 +226,10 @@ jobs:
             BUILD_ID=$(cat build_id.txt)
             echo "Waiting for build $BUILD_ID to complete..."
             
-            # 최대 45분 대기 (3분마다 체크)
-            for i in {1..15}; do
+            # 최대 90분 대기 (5분마다 체크) - EAS 무료 계정 큐 대기시간 고려
+            for i in {1..18}; do
               STATUS=$(yarn eas build:list --build-id $BUILD_ID --json | jq -r '.[0].status')
-              echo "Build status: $STATUS (check $i/15)"
+              echo "Build status: $STATUS (check $i/18)"
               
               if [ "$STATUS" = "finished" ]; then
                 echo "Build completed successfully!"
@@ -237,17 +239,18 @@ jobs:
                 exit 1
               fi
               
-              # 3분 대기
-              sleep 180
+              # 5분 대기 (큐 대기시간을 고려한 체크 간격)
+              sleep 300
             done
             
             # 최종 상태 확인
             FINAL_STATUS=$(yarn eas build:list --build-id $BUILD_ID --json | jq -r '.[0].status')
             if [ "$FINAL_STATUS" != "finished" ]; then
-              echo "Build did not complete within 45 minutes. Status: $FINAL_STATUS"
+              echo "Build did not complete within 90 minutes. Status: $FINAL_STATUS"
+              echo "EAS Build queue may be experiencing delays. Check: https://expo.dev/accounts/parkseohoo/projects/RC_BUILD_TEST/builds"
               exit 1
             fi
-          no_output_timeout: 50m
+          no_output_timeout: 95m
 
       # 빌드 결과 다운로드 및 저장
       - run:
