@@ -203,29 +203,71 @@ jobs:
             # 인증 상태 확인 (프로젝트에 설치된 CLI 사용)
             yarn eas whoami || echo "Authentication check failed, but continuing..."
 
-      # APK 빌드 실행
+      # APK 빌드 실행 (백그라운드)
       - run:
-          name: Build Android APK
+          name: Start Android APK Build
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
             export EXPO_TOKEN=$EXPO_TOKEN
-            yarn eas build --platform android --profile apk --non-interactive --wait
-          no_output_timeout: 30m
+            # 빌드 시작하고 Build ID 저장
+            yarn eas build --platform android --profile apk --non-interactive --json > build_result.json
+            BUILD_ID=$(cat build_result.json | jq -r '.id')
+            echo "Build started with ID: $BUILD_ID"
+            echo $BUILD_ID > build_id.txt
+          no_output_timeout: 5m
+
+      # 빌드 완료 대기 (폴링 방식)
+      - run:
+          name: Wait for Build Completion
+          command: |
+            export EXPO_TOKEN=$EXPO_TOKEN
+            BUILD_ID=$(cat build_id.txt)
+            echo "Waiting for build $BUILD_ID to complete..."
+            
+            # 최대 45분 대기 (3분마다 체크)
+            for i in {1..15}; do
+              STATUS=$(yarn eas build:list --build-id $BUILD_ID --json | jq -r '.[0].status')
+              echo "Build status: $STATUS (check $i/15)"
+              
+              if [ "$STATUS" = "finished" ]; then
+                echo "Build completed successfully!"
+                break
+              elif [ "$STATUS" = "errored" ] || [ "$STATUS" = "canceled" ]; then
+                echo "Build failed with status: $STATUS"
+                exit 1
+              fi
+              
+              # 3분 대기
+              sleep 180
+            done
+            
+            # 최종 상태 확인
+            FINAL_STATUS=$(yarn eas build:list --build-id $BUILD_ID --json | jq -r '.[0].status')
+            if [ "$FINAL_STATUS" != "finished" ]; then
+              echo "Build did not complete within 45 minutes. Status: $FINAL_STATUS"
+              exit 1
+            fi
+          no_output_timeout: 50m
 
       # 빌드 결과 다운로드 및 저장
       - run:
           name: Download APK
           command: |
             export EXPO_TOKEN=$EXPO_TOKEN
-            # 최신 빌드 다운로드
-            yarn eas build:list --platform android --status finished --limit 1 --json > builds.json
-            BUILD_URL=$(cat builds.json | jq -r '.[0].artifacts.buildUrl')
-            if [ "$BUILD_URL" != "null" ]; then
+            BUILD_ID=$(cat build_id.txt)
+            
+            # 특정 빌드 ID로 빌드 정보 가져오기
+            yarn eas build:list --build-id $BUILD_ID --json > build_info.json
+            BUILD_URL=$(cat build_info.json | jq -r '.[0].artifacts.buildUrl')
+            
+            if [ "$BUILD_URL" != "null" ] && [ "$BUILD_URL" != "" ]; then
               mkdir -p apk-build
               curl -L -o apk-build/app.apk "$BUILD_URL"
-              echo "APK downloaded successfully"
+              echo "APK downloaded successfully from: $BUILD_URL"
+              ls -la apk-build/
             else
-              echo "No build URL found"
+              echo "No build URL found for build ID: $BUILD_ID"
+              cat build_info.json
               exit 1
             fi
 
