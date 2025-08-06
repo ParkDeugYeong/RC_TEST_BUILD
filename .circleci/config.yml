@@ -250,9 +250,23 @@ jobs:
               fi
               
               # 빌드 상태 조회 (안전한 파싱)
-              yarn eas build:list --build-id $BUILD_ID --json > status_result.json
+              echo "Checking build status for ID: $BUILD_ID"
+              yarn eas build:list --json > status_result.json || echo "build:list failed, trying alternative"
+              
+              # build:list가 실패하면 build:view 사용
+              if [ $? -ne 0 ]; then
+                echo "Trying build:view command..."
+                yarn eas build:view $BUILD_ID --json > status_result.json || echo "build:view also failed"
+              fi
+              
               cat status_result.json
-              STATUS=$(cat status_result.json | jq -r '.[0].status // "unknown"')
+              
+              # JSON에서 상태 추출 (여러 형식 지원)
+              if cat status_result.json | jq -e 'type == "array"' > /dev/null 2>&1; then
+                STATUS=$(cat status_result.json | jq -r '.[] | select(.id == "'$BUILD_ID'") | .status // "unknown"')
+              else
+                STATUS=$(cat status_result.json | jq -r '.status // "unknown"')
+              fi
               
               CURRENT_TIME=$(date)
               echo "Current time: $CURRENT_TIME"
@@ -282,7 +296,9 @@ jobs:
             done
             
             # 최종 상태 확인
-            FINAL_STATUS=$(yarn eas build:list --build-id $BUILD_ID --json | jq -r '.[0].status')
+            echo "Final build status check..."
+            yarn eas build:view $BUILD_ID --json > final_status.json || yarn eas build:list --json > final_status.json
+            FINAL_STATUS=$(cat final_status.json | jq -r '.status // "unknown"')
             if [ "$FINAL_STATUS" != "finished" ]; then
               echo "Build did not complete within 90 minutes. Status: $FINAL_STATUS"
               echo "EAS Build queue may be experiencing delays. Check: https://expo.dev/accounts/parkseohoo/projects/RC_BUILD_TEST/builds"
