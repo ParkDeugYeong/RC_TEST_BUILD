@@ -89,7 +89,9 @@ jobs:
       - run:
           name: Expo Authentication
           command: |
-            echo $EXPO_TOKEN | yarn dlx @expo/cli login --stdin
+            # Expo CLI는 EXPO_TOKEN 환경변수를 자동으로 인식합니다
+            echo "Expo CLI will use EXPO_TOKEN environment variable"
+            yarn dlx @expo/cli whoami
           
       # Expo 프로젝트 빌드 (모바일 전용: Android + iOS)
       - run:
