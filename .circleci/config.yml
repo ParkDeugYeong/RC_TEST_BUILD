@@ -10,6 +10,13 @@ workflows:
       - build-expo:
           requires:
             - lint-and-test
+      - build-apk:
+          requires:
+            - build-expo
+          filters:
+            branches:
+              only:
+                - main
 
 jobs:
   lint-and-test:
@@ -142,3 +149,93 @@ jobs:
           key: expo-build-{{ .Branch }}-{{ .Revision }}
           paths:
             - dist
+
+  build-apk:
+    docker:
+      - image: cimg/node:18.20
+    steps:
+      - checkout
+
+      # Yarn 4.9.1 설정 (Corepack 사용)
+      - run:
+          name: Setup Yarn 4.9.1
+          command: |
+            mkdir -p ~/.corepack
+            corepack enable --install-directory ~/.corepack
+            echo 'export PATH="$HOME/.corepack:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            corepack prepare yarn@4.9.1 --activate
+            yarn --version
+            yarn config set nodeLinker node-modules
+
+      # 의존성 설치
+      - run:
+          name: Install Dependencies
+          command: |
+            yarn install --immutable
+            # node_modules 캐시 클리어 (Metro 호환성 문제 해결)
+            rm -rf node_modules/.cache
+            # Expo SDK 53이 자동으로 Metro 버전을 관리하도록 함
+            # Metro 패키지들을 수동으로 설치하지 않고 Expo가 호환되는 버전을 선택하도록 함
+            # Expo CLI를 프로젝트 의존성으로 설치
+            yarn add -D @expo/cli
+
+      # EAS CLI 설치
+      - run:
+          name: Install EAS CLI
+          command: yarn add -D eas-cli
+
+      # Expo 인증 (EXPO_TOKEN 환경변수 사용)
+      - run:
+          name: Expo Authentication
+          command: |
+            # EXPO_TOKEN 환경변수 확인 및 설정
+            echo "Checking EXPO_TOKEN environment variable..."
+            if [ -z "$EXPO_TOKEN" ]; then
+              echo "ERROR: EXPO_TOKEN environment variable is not set"
+              exit 1
+            fi
+
+            # Expo 환경변수 명시적 설정
+            export EXPO_TOKEN=$EXPO_TOKEN
+            echo "EXPO_TOKEN is set (length: ${#EXPO_TOKEN})"
+
+            # 인증 상태 확인 (프로젝트에 설치된 CLI 사용)
+            yarn eas whoami || echo "Authentication check failed, but continuing..."
+
+      # APK 빌드 실행
+      - run:
+          name: Build Android APK
+          command: |
+            export NODE_OPTIONS="--max-old-space-size=4096"
+            export EXPO_TOKEN=$EXPO_TOKEN
+            yarn eas build --platform android --profile apk --non-interactive --wait
+          no_output_timeout: 30m
+
+      # 빌드 결과 다운로드 및 저장
+      - run:
+          name: Download APK
+          command: |
+            export EXPO_TOKEN=$EXPO_TOKEN
+            # 최신 빌드 다운로드
+            yarn eas build:list --platform android --status finished --limit 1 --json > builds.json
+            BUILD_URL=$(cat builds.json | jq -r '.[0].artifacts.buildUrl')
+            if [ "$BUILD_URL" != "null" ]; then
+              mkdir -p apk-build
+              curl -L -o apk-build/app.apk "$BUILD_URL"
+              echo "APK downloaded successfully"
+            else
+              echo "No build URL found"
+              exit 1
+            fi
+
+      # APK 아티팩트 저장
+      - store_artifacts:
+          path: apk-build
+          destination: android-apk
+
+      # 캐시 저장
+      - save_cache:
+          key: eas-build-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - node_modules
