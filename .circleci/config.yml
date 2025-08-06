@@ -81,25 +81,28 @@ jobs:
       # Expo CLI 설치 및 인증
       - run:
           name: Install Expo CLI
-          command: yarn global add @expo/cli
+          command: |
+            # Yarn Berry에서는 global 명령어가 제거됨
+            # yarn dlx를 사용하여 임시로 설치하고 실행
+            echo "Expo CLI는 yarn dlx로 실행됩니다"
           
       - run:
           name: Expo Authentication
           command: |
-            echo $EXPO_TOKEN | expo login --stdin
+            echo $EXPO_TOKEN | yarn dlx @expo/cli login --stdin
           
       # Expo 프로젝트 빌드 (모바일 전용: Android + iOS)
       - run:
           name: Build Expo Android
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
-            yarn expo export --platform android
+            yarn dlx @expo/cli export --platform android
             
       - run:
           name: Build Expo iOS
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
-            yarn expo export --platform ios
+            yarn dlx @expo/cli export --platform ios
             
       # 빌드 결과물 저장
       - store_artifacts:
