@@ -37,8 +37,8 @@ jobs:
             yarn install --immutable
             # node_modules 캐시 클리어 (Metro 호환성 문제 해결)
             rm -rf node_modules/.cache
-            # Expo CLI와 호환되는 Metro 완전한 패키지 설치 (0.76.x 버전)
-            yarn add metro@^0.79.0 metro-config@^0.79.0 metro-cache@^0.79.0 metro-core@^0.79.0 metro-runtime@^0.79.0 metro-resolver@^0.79.0 metro-transform-worker@^0.79.0 metro-babel-transformer@^0.79.0 metro-file-map@^0.79.0 metro-source-map@^0.79.0 @react-native/babel-preset@^0.79.0
+            # Expo SDK 53이 자동으로 Metro 버전을 관리하도록 함
+            # Metro 패키지들을 수동으로 설치하지 않고 Expo가 호환되는 버전을 선택하도록 함
             # Expo CLI를 프로젝트 의존성으로 설치
             yarn add -D @expo/cli
           
@@ -87,8 +87,8 @@ jobs:
             yarn install --immutable
             # node_modules 캐시 클리어 (Metro 호환성 문제 해결)
             rm -rf node_modules/.cache
-            # Expo CLI와 호환되는 Metro 완전한 패키지 설치 (0.76.x 버전)
-            yarn add metro@^0.79.0 metro-config@^0.79.0 metro-cache@^0.79.0 metro-core@^0.79.0 metro-runtime@^0.79.0 metro-resolver@^0.79.0 metro-transform-worker@^0.79.0 metro-babel-transformer@^0.79.0 metro-file-map@^0.79.0 metro-source-map@^0.79.0 @react-native/babel-preset@^0.79.0
+            # Expo SDK 53이 자동으로 Metro 버전을 관리하도록 함
+            # Metro 패키지들을 수동으로 설치하지 않고 Expo가 호환되는 버전을 선택하도록 함
             # Expo CLI를 프로젝트 의존성으로 설치
             yarn add -D @expo/cli
           
