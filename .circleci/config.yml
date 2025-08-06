@@ -212,7 +212,18 @@ jobs:
             # 빌드 시작하고 Build ID 저장 (업로드만 하고 대기하지 않음)
             echo "Starting EAS Build upload and initialization..."
             yarn eas build --platform android --profile apk --non-interactive --no-wait --json > build_result.json
-            BUILD_ID=$(cat build_result.json | jq -r '.id')
+            
+            # JSON 파싱 안전하게 처리
+            cat build_result.json
+            echo "=== Parsing Build ID ==="
+            
+            # 배열인지 객체인지 확인하고 적절히 파싱
+            if cat build_result.json | jq -e 'type == "array"' > /dev/null; then
+              BUILD_ID=$(cat build_result.json | jq -r '.[0].id // .id // "unknown"')
+            else
+              BUILD_ID=$(cat build_result.json | jq -r '.id // "unknown"')
+            fi
+            
             echo "Build started with ID: $BUILD_ID"
             echo $BUILD_ID > build_id.txt
             echo "Build upload completed and queued for processing."
@@ -230,7 +241,19 @@ jobs:
             # 최대 90분 대기 (2분마다 체크) - EAS 무료 계정 큐 대기시간 고려
             for i in {1..45}; do
               echo "===== Build Status Check $i/45 ====="
-              STATUS=$(yarn eas build:list --build-id $BUILD_ID --json | jq -r '.[0].status')
+              
+              # Build ID 유효성 검사
+              if [ "$BUILD_ID" = "unknown" ] || [ -z "$BUILD_ID" ]; then
+                echo "❌ Invalid Build ID: $BUILD_ID"
+                echo "Check the EAS build logs manually"
+                exit 1
+              fi
+              
+              # 빌드 상태 조회 (안전한 파싱)
+              yarn eas build:list --build-id $BUILD_ID --json > status_result.json
+              cat status_result.json
+              STATUS=$(cat status_result.json | jq -r '.[0].status // "unknown"')
+              
               CURRENT_TIME=$(date)
               echo "Current time: $CURRENT_TIME"
               echo "Build ID: $BUILD_ID"
