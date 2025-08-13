@@ -3,10 +3,10 @@
     "version": ">= 16.17.4",
     "appVersionSource": "remote"
   },
-  "hooks": {
-    "pre-install": "bash ./scripts/eas-build-pre-install.sh"
-  },
   "build": {
+    "hooks": {
+      "pre-install": "bash ./scripts/eas-build-pre-install.sh"
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal"
