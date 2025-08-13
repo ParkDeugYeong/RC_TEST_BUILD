@@ -187,26 +187,27 @@ jobs:
                 exit 1
               fi
               
-              # 빌드 상태 조회 (안전한 파싱)
+              # 빌드 상태 조회 (특정 ID 우선 조회)
               echo "Checking build status for ID: $BUILD_ID"
-              if ! yarn eas build:list --non-interactive --json > status_result.json; then
-                echo "build:list failed, trying alternative"
-                yarn eas build:view $BUILD_ID --non-interactive --json > status_result.json || echo "build:view also failed"
+              if ! yarn eas build:view $BUILD_ID --non-interactive --json > status_result.json; then
+                echo "build:view failed, trying build:list"
+                yarn eas build:list --non-interactive --json > status_result.json || echo "build:list also failed"
               fi
               
               cat status_result.json
               
-              # JSON에서 상태 추출 (여러 형식 지원)
+              # JSON에서 상태 추출 (여러 형식 지원) + 상태 정규화
               if cat status_result.json | jq -e 'type == "array"' > /dev/null 2>&1; then
-                STATUS=$(cat status_result.json | jq -r '.[] | select(.id == "'$BUILD_ID'") | .status // "unknown"')
+                STATUS_RAW=$(cat status_result.json | jq -r '.[] | select(.id == "'$BUILD_ID'") | .status // "unknown"')
               else
-                STATUS=$(cat status_result.json | jq -r '.status // "unknown"')
+                STATUS_RAW=$(cat status_result.json | jq -r '.status // "unknown"')
               fi
+              STATUS=$(echo "$STATUS_RAW" | tr '[:upper:]' '[:lower:]' | tr '_' '-')
               
               CURRENT_TIME=$(date)
               echo "Current time: $CURRENT_TIME"
               echo "Build ID: $BUILD_ID"
-              echo "Build status: $STATUS"
+              echo "Build status: $STATUS_RAW"
               
               if [ "$STATUS" = "finished" ]; then
                 echo "🎉 Build completed successfully!"
@@ -215,12 +216,12 @@ jobs:
                 echo "❌ Build failed with status: $STATUS"
                 echo "Check logs: https://expo.dev/accounts/parkseohoo/projects/RC_BUILD_TEST/builds/$BUILD_ID"
                 exit 1
-              elif [ "$STATUS" = "in-queue" ]; then
+              elif [ "$STATUS" = "in-queue" ] || [ "$STATUS" = "in-queueing" ] || [ "$STATUS" = "queued" ]; then
                 echo "⏳ Build is waiting in queue..."
-              elif [ "$STATUS" = "in-progress" ]; then
+              elif [ "$STATUS" = "in-progress" ] || [ "$STATUS" = "in-progressing" ] || [ "$STATUS" = "building" ]; then
                 echo "🔄 Build is in progress..."
               else
-                echo "📋 Build status: $STATUS"
+                echo "📋 Build status (normalized): $STATUS"
               fi
               
               echo "Next check in 2 minutes..."
