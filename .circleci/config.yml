@@ -21,52 +21,53 @@ jobs:
       - image: cimg/node:18.20
     steps:
       - checkout
-      
+
+      # 0) 선탑재된 글로벌 yarn 제거 + Corepack 최신화
+      - run:
+          name: Remove global Yarn & enable Corepack
+          command: |
+            which yarn || true
+            yarn --version || true
+            # 글로벌 yarn 바이너리 제거(있어도 없어도 통과)
+            sudo rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg || true
+            # Corepack 최신화 및 활성화
+            npm i -g corepack@latest
+            corepack enable
+            corepack prepare yarn@4.9.1 --activate
+            # 셸 해시 초기화 및 버전 확인
+            hash -r
+            which yarn
+            yarn --version
+            # Yarn 4에서 node_modules 링크 사용
+            yarn config set nodeLinker node-modules
+
       # 캐시 복원 (node_modules)
       - restore_cache:
           keys:
             - yarn-deps-{{ checksum "yarn.lock" }}
             - yarn-deps-
-      
-      # Yarn 4.9.1 설정 (Corepack 사용)
-      - run:
-          name: Setup Yarn 4.9.1
-          command: |
-            mkdir -p ~/.corepack
-            corepack enable --install-directory ~/.corepack
-            echo 'export PATH="$HOME/.corepack:$PATH"' >> $BASH_ENV
-            source $BASH_ENV
-            corepack prepare yarn@4.9.1 --activate
-            yarn --version
-            yarn config set nodeLinker node-modules
-      
+
       # 의존성 설치
       - run:
           name: Install Dependencies
           command: |
             yarn install --immutable
-            # node_modules 캐시 클리어 (Metro 호환성 문제 해결)
             rm -rf node_modules/.cache
-            # Expo SDK 53이 자동으로 Metro 버전을 관리하도록 함
-            # Metro 패키지들을 수동으로 설치하지 않고 Expo가 호환되는 버전을 선택하도록 함
 
-      # 캐시 저장 (node_modules)
+      # 캐시 저장
       - save_cache:
           key: yarn-deps-{{ checksum "yarn.lock" }}
           paths:
             - node_modules
-          
-      # TypeScript 타입 체크
+
       - run:
           name: TypeScript Type Check
           command: yarn tsc --noEmit
-          
-      # ESLint 검사
+
       - run:
           name: Run ESLint
           command: yarn lint
-          
-      # 테스트 실행 (Jest가 설정되어 있다면)
+
       - run:
           name: Run Tests
           command: |
@@ -82,197 +83,127 @@ jobs:
     steps:
       - checkout
 
-      # 캐시 복원 (node_modules)
+      # 0) 선탑재된 글로벌 yarn 제거 + Corepack 최신화
+      - run:
+          name: Remove global Yarn & enable Corepack
+          command: |
+            sudo rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg || true
+            npm i -g corepack@latest
+            corepack enable
+            corepack prepare yarn@4.9.1 --activate
+            hash -r
+            yarn --version
+            yarn config set nodeLinker node-modules
+
+      # 캐시 복원
       - restore_cache:
           keys:
             - yarn-deps-{{ checksum "yarn.lock" }}
             - yarn-deps-
-
-      # Yarn 4.9.1 설정 (Corepack 사용)
-      - run:
-          name: Setup Yarn 4.9.1
-          command: |
-            mkdir -p ~/.corepack
-            corepack enable --install-directory ~/.corepack
-            echo 'export PATH="$HOME/.corepack:$PATH"' >> $BASH_ENV
-            source $BASH_ENV
-            corepack prepare yarn@4.9.1 --activate
-            yarn --version
-            yarn config set nodeLinker node-modules
 
       # 의존성 설치
       - run:
           name: Install Dependencies
           command: |
             yarn install --immutable
-            # node_modules 캐시 클리어 (Metro 호환성 문제 해결)
             rm -rf node_modules/.cache
-            # Expo SDK 53이 자동으로 Metro 버전을 관리하도록 함
-            # Metro 패키지들을 수동으로 설치하지 않고 Expo가 호환되는 버전을 선택하도록 함
 
-      # 캐시 저장 (node_modules)
+      # 캐시 저장
       - save_cache:
           key: yarn-deps-{{ checksum "yarn.lock" }}
           paths:
             - node_modules
 
-      # 유틸리티 설치 (jq 등)
+      # 유틸리티 설치
       - run:
-          name: Install utilities (jq)
+          name: Install utilities (jq, curl)
           command: |
             sudo apt-get update
-            sudo apt-get install -y jq
+            sudo apt-get install -y jq curl
 
-      # Expo 인증 (EXPO_TOKEN 환경변수 사용)
+      # Expo 토큰 확인
       - run:
-          name: Expo Authentication
+          name: Check EXPO_TOKEN
           command: |
-            # EXPO_TOKEN 환경변수 확인 및 설정
-            echo "Checking EXPO_TOKEN environment variable..."
             if [ -z "$EXPO_TOKEN" ]; then
-              echo "ERROR: EXPO_TOKEN environment variable is not set"
+              echo "ERROR: EXPO_TOKEN is not set"
               exit 1
             fi
 
-            # Expo 환경변수 명시적 설정
-            export EXPO_TOKEN=$EXPO_TOKEN
-            echo "EXPO_TOKEN is set (length: ${#EXPO_TOKEN})"
-
-            # 인증 상태 확인 (프로젝트에 설치된 CLI 사용)
-            yarn eas whoami --non-interactive || echo "Authentication check failed, but continuing..."
-
-      # APK 빌드 실행 (백그라운드)
+      # ▶︎ Yarn 대신 npx로 EAS CLI 호출하여 Yarn 버전 의존 제거
       - run:
-          name: Start Android APK Build
+          name: Start Android APK Build (EAS)
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
-            export EXPO_TOKEN=$EXPO_TOKEN
-            # 빌드 시작하고 Build ID 저장 (업로드만 하고 대기하지 않음)
-            echo "Starting EAS Build upload and initialization..."
-            yarn eas build --platform android --profile apk --non-interactive --no-wait --json > build_result.json
-            
-            # JSON 파싱 안전하게 처리
+            echo "Starting EAS Build..."
+            npx --yes eas-cli@latest build --platform android --profile apk --non-interactive --no-wait --json > build_result.json
             cat build_result.json
-            echo "=== Parsing Build ID ==="
-            
-            # 배열인지 객체인지 확인하고 적절히 파싱
-            if cat build_result.json | jq -e 'type == "array"' > /dev/null; then
-              BUILD_ID=$(cat build_result.json | jq -r '.[0].id // .id // "unknown"')
+            if jq -e 'type=="array"' build_result.json >/dev/null 2>&1; then
+              BUILD_ID=$(jq -r '.[0].id // "unknown"' build_result.json)
             else
-              BUILD_ID=$(cat build_result.json | jq -r '.id // "unknown"')
+              BUILD_ID=$(jq -r '.id // "unknown"' build_result.json)
             fi
-            
-            echo "Build started with ID: $BUILD_ID"
-            echo $BUILD_ID > build_id.txt
-            echo "Build upload completed and queued for processing."
-            echo "Build will be monitored in the next step..."
+            echo "$BUILD_ID" > build_id.txt
+            echo "Build ID: $BUILD_ID"
           no_output_timeout: 10m
 
-      # 빌드 완료 대기 (폴링 방식)
       - run:
           name: Wait for Build Completion
           command: |
-            export EXPO_TOKEN=$EXPO_TOKEN
             BUILD_ID=$(cat build_id.txt)
-            echo "Waiting for build $BUILD_ID to complete..."
-            
-            # 최대 90분 대기 (2분마다 체크) - EAS 무료 계정 큐 대기시간 고려
             for i in {1..45}; do
-              echo "===== Build Status Check $i/45 ====="
-              
-              # Build ID 유효성 검사
-              if [ "$BUILD_ID" = "unknown" ] || [ -z "$BUILD_ID" ]; then
-                echo "❌ Invalid Build ID: $BUILD_ID"
-                echo "Check the EAS build logs manually"
-                exit 1
+              echo "Check $i/45"
+              # 우선 ID로 조회, 실패 시 리스트 폴백
+              if ! npx --yes eas-cli@latest build:view "$BUILD_ID" --non-interactive --json > status_result.json; then
+                npx --yes eas-cli@latest build:list --limit 5 --non-interactive --json > status_result.json || true
               fi
-              
-              # 빌드 상태 조회 (특정 ID 우선 조회)
-              echo "Checking build status for ID: $BUILD_ID"
-              if ! yarn eas build:view $BUILD_ID --non-interactive --json > status_result.json; then
-                echo "build:view failed, trying build:list"
-                yarn eas build:list --non-interactive --json > status_result.json || echo "build:list also failed"
-              fi
-              
-              cat status_result.json
-              
-              # JSON에서 상태 추출 (여러 형식 지원) + 상태 정규화
-              if cat status_result.json | jq -e 'type == "array"' > /dev/null 2>&1; then
-                STATUS_RAW=$(cat status_result.json | jq -r '.[] | select(.id == "'$BUILD_ID'") | .status // "unknown"')
+              cat status_result.json || true
+              if jq -e 'type=="array"' status_result.json >/dev/null 2>&1; then
+                STATUS=$(jq -r '.[] | select(.id=="'"$BUILD_ID"'") | .status // "unknown"' status_result.json)
               else
-                STATUS_RAW=$(cat status_result.json | jq -r '.status // "unknown"')
+                STATUS=$(jq -r '.status // "unknown"' status_result.json)
               fi
-              STATUS=$(echo "$STATUS_RAW" | tr '[:upper:]' '[:lower:]' | tr '_' '-')
-              
-              CURRENT_TIME=$(date)
-              echo "Current time: $CURRENT_TIME"
-              echo "Build ID: $BUILD_ID"
-              echo "Build status: $STATUS_RAW"
-              
-              if [ "$STATUS" = "finished" ]; then
-                echo "🎉 Build completed successfully!"
+              STATUS_LOWER=$(echo "$STATUS" | tr '[:upper:]' '[:lower:]')
+              echo "Status: $STATUS_LOWER"
+              if [ "$STATUS_LOWER" = "finished" ]; then
+                echo "Build finished"
                 break
-              elif [ "$STATUS" = "errored" ] || [ "$STATUS" = "canceled" ]; then
-                echo "❌ Build failed with status: $STATUS"
-                echo "Check logs: https://expo.dev/accounts/parkseohoo/projects/RC_BUILD_TEST/builds/$BUILD_ID"
+              elif [ "$STATUS_LOWER" = "errored" ] || [ "$STATUS_LOWER" = "canceled" ]; then
+                echo "Build failed: $STATUS_LOWER"
                 exit 1
-              elif [ "$STATUS" = "in-queue" ] || [ "$STATUS" = "in-queueing" ] || [ "$STATUS" = "queued" ]; then
-                echo "⏳ Build is waiting in queue..."
-              elif [ "$STATUS" = "in-progress" ] || [ "$STATUS" = "in-progressing" ] || [ "$STATUS" = "building" ]; then
-                echo "🔄 Build is in progress..."
-              else
-                echo "📋 Build status (normalized): $STATUS"
               fi
-              
-              echo "Next check in 2 minutes..."
-              echo "========================================="
-              
-              # 2분 대기 (더 자주 체크하여 출력 유지)
               sleep 120
             done
-            
-            # 최종 상태 확인
-            echo "Final build status check..."
-            yarn eas build:view $BUILD_ID --non-interactive --json > final_status.json || yarn eas build:list --non-interactive --json > final_status.json
-            if cat final_status.json | jq -e 'type == "array"' > /dev/null 2>&1; then
-              FINAL_STATUS=$(cat final_status.json | jq -r '.[] | select(.id == '"'$BUILD_ID'"') | .status // "unknown"')
+            # 최종 확인
+            npx --yes eas-cli@latest build:view "$BUILD_ID" --non-interactive --json > final_status.json || true
+            if jq -e 'type=="array"' final_status.json >/dev/null 2>&1; then
+              FINAL=$(jq -r '.[] | select(.id=="'"$BUILD_ID"'") | .status // "unknown"' final_status.json)
             else
-              FINAL_STATUS=$(cat final_status.json | jq -r '.status // "unknown"')
+              FINAL=$(jq -r '.status // "unknown"' final_status.json)
             fi
-            if [ "$FINAL_STATUS" != "finished" ]; then
-              echo "Build did not complete within 90 minutes. Status: $FINAL_STATUS"
-              echo "EAS Build queue may be experiencing delays. Check: https://expo.dev/accounts/parkseohoo/projects/RC_BUILD_TEST/builds"
-              exit 1
-            fi
+            [ "$FINAL" = "finished" ] || { echo "Timeout. Final: $FINAL"; exit 1; }
           no_output_timeout: 95m
 
-      # 빌드 결과 다운로드 및 저장
       - run:
           name: Download APK
           command: |
-            export EXPO_TOKEN=$EXPO_TOKEN
             BUILD_ID=$(cat build_id.txt)
-            
-            # 특정 빌드 ID로 빌드 정보 가져오기 (build:view 사용)
-            yarn eas build:view $BUILD_ID --non-interactive --json > build_info.json
-            if cat build_info.json | jq -e 'type == "array"' > /dev/null 2>&1; then
-              BUILD_URL=$(cat build_info.json | jq -r '.[0].artifacts.buildUrl // empty')
+            npx --yes eas-cli@latest build:view "$BUILD_ID" --non-interactive --json > build_info.json
+            if jq -e 'type=="array"' build_info.json >/dev/null 2>&1; then
+              BUILD_URL=$(jq -r '.[0].artifacts.buildUrl // empty' build_info.json)
             else
-              BUILD_URL=$(cat build_info.json | jq -r '.artifacts.buildUrl // empty')
+              BUILD_URL=$(jq -r '.artifacts.buildUrl // empty' build_info.json)
             fi
-            
             if [ -n "$BUILD_URL" ]; then
               mkdir -p apk-build
               curl -L -o apk-build/app.apk "$BUILD_URL"
-              echo "APK downloaded successfully from: $BUILD_URL"
               ls -la apk-build/
             else
-              echo "No build URL found for build ID: $BUILD_ID"
+              echo "No build URL found"
               cat build_info.json
               exit 1
             fi
 
-      # APK 아티팩트 저장
       - store_artifacts:
           path: apk-build
           destination: android-apk
