@@ -136,8 +136,13 @@ jobs:
           command: |
             export NODE_OPTIONS="--max-old-space-size=4096"
             echo "Starting EAS Build..."
-            npx --yes eas-cli@latest build --platform android --profile apk --non-interactive --no-wait --json > build_result.json
-            cat build_result.json
+            npx --yes eas-cli@16.17.4 build --platform android --profile apk --non-interactive --no-wait --json > build_result.json 2> build_result.err || true
+            cat build_result.json || true
+            if ! jq -e . build_result.json >/dev/null 2>&1; then
+              echo "Failed to get JSON from build command"
+              cat build_result.err || true
+              exit 1
+            fi
             if jq -e 'type=="array"' build_result.json >/dev/null 2>&1; then
               BUILD_ID=$(jq -r '.[0].id // "unknown"' build_result.json)
             else
@@ -154,16 +159,23 @@ jobs:
             for i in {1..45}; do
               echo "Check $i/45"
               # 우선 ID로 조회, 실패 시 리스트 폴백
-              if ! npx --yes eas-cli@latest build:view "$BUILD_ID" --non-interactive --json > status_result.json; then
-                npx --yes eas-cli@latest build:list --limit 5 --non-interactive --json > status_result.json || true
+              if ! npx --yes eas-cli@16.17.4 build:view "$BUILD_ID" --non-interactive --json > status_result.json 2> status_result.err; then
+                npx --yes eas-cli@16.17.4 build:list --limit 5 --non-interactive --json > status_result.json 2> status_result.err || true
               fi
-              cat status_result.json || true
+              # JSON 유효성 검증 (비-JSON 응답이면 재시도)
+              if ! jq -e . status_result.json >/dev/null 2>&1; then
+                echo "Non-JSON status response; retrying..."
+                cat status_result.err || true
+                cat status_result.json || true
+                sleep 10
+                continue
+              fi
               if jq -e 'type=="array"' status_result.json >/dev/null 2>&1; then
-                STATUS=$(jq -r '.[] | select(.id=="'"$BUILD_ID"'") | .status // "unknown"' status_result.json)
+                STATUS=$(jq -r '.[] | select(.id=="'"$BUILD_ID"'") | .status // empty' status_result.json)
               else
-                STATUS=$(jq -r '.status // "unknown"' status_result.json)
+                STATUS=$(jq -r '.status // empty' status_result.json)
               fi
-              STATUS_LOWER=$(echo "$STATUS" | tr '[:upper:]' '[:lower:]')
+              STATUS_LOWER=$(echo "${STATUS:-unknown}" | tr '[:upper:]' '[:lower:]')
               echo "Status: $STATUS_LOWER"
               if [ "$STATUS_LOWER" = "finished" ]; then
                 echo "Build finished"
@@ -174,21 +186,21 @@ jobs:
               fi
               sleep 120
             done
-            # 최종 확인
-            npx --yes eas-cli@latest build:view "$BUILD_ID" --non-interactive --json > final_status.json || true
-            if jq -e 'type=="array"' final_status.json >/dev/null 2>&1; then
-              FINAL=$(jq -r '.[] | select(.id=="'"$BUILD_ID"'") | .status // "unknown"' final_status.json)
-            else
-              FINAL=$(jq -r '.status // "unknown"' final_status.json)
-            fi
-            [ "$FINAL" = "finished" ] || { echo "Timeout. Final: $FINAL"; exit 1; }
+            # 최종 조회(비치명적)
+            npx --yes eas-cli@16.17.4 build:view "$BUILD_ID" --non-interactive --json > final_status.json 2>/dev/null || true
           no_output_timeout: 95m
 
       - run:
           name: Download APK
           command: |
             BUILD_ID=$(cat build_id.txt)
-            npx --yes eas-cli@latest build:view "$BUILD_ID" --non-interactive --json > build_info.json
+            npx --yes eas-cli@16.17.4 build:view "$BUILD_ID" --non-interactive --json > build_info.json 2> build_info.err || true
+            if ! jq -e . build_info.json >/dev/null 2>&1; then
+              echo "Failed to fetch build info JSON"
+              cat build_info.err || true
+              cat build_info.json || true
+              exit 1
+            fi
             if jq -e 'type=="array"' build_info.json >/dev/null 2>&1; then
               BUILD_URL=$(jq -r '.[0].artifacts.buildUrl // empty' build_info.json)
             else
