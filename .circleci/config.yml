@@ -159,8 +159,8 @@ jobs:
             for i in {1..45}; do
               echo "Check $i/45"
               # 우선 ID로 조회, 실패 시 리스트 폴백
-              if ! npx --yes eas-cli@16.17.4 build:view "$BUILD_ID" --non-interactive --json > status_result.json 2> status_result.err; then
-                npx --yes eas-cli@16.17.4 build:list --limit 5 --non-interactive --json > status_result.json 2> status_result.err || true
+              if ! npx --yes eas-cli@16.17.4 build:view "$BUILD_ID" --json > status_result.json 2> status_result.err; then
+                npx --yes eas-cli@16.17.4 build:list --limit 5 --json > status_result.json 2> status_result.err || true
               fi
               # JSON 유효성 검증 (비-JSON 응답이면 재시도)
               if ! jq -e . status_result.json >/dev/null 2>&1; then
@@ -187,14 +187,14 @@ jobs:
               sleep 120
             done
             # 최종 조회(비치명적)
-            npx --yes eas-cli@16.17.4 build:view "$BUILD_ID" --non-interactive --json > final_status.json 2>/dev/null || true
+            npx --yes eas-cli@16.17.4 build:view "$BUILD_ID" --json > final_status.json 2>/dev/null || true
           no_output_timeout: 95m
 
       - run:
           name: Download APK
           command: |
             BUILD_ID=$(cat build_id.txt)
-            npx --yes eas-cli@16.17.4 build:view "$BUILD_ID" --non-interactive --json > build_info.json 2> build_info.err || true
+            npx --yes eas-cli@16.17.4 build:view "$BUILD_ID" --json > build_info.json 2> build_info.err || true
             if ! jq -e . build_info.json >/dev/null 2>&1; then
               echo "Failed to fetch build info JSON"
               cat build_info.err || true
